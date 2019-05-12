@@ -1,7 +1,8 @@
 # Filter shot data with id and xG into new df. Then rename.
 events.xG_to_xA <- filter(events, shot.statsbomb_xg != "NA") %>%
 	select(events, shot.key_pass_id, shot.statsbomb_xg) %>%
-	rename(events, id = shot.key_pass_id, pass.statsbomb_xa = shot.statsbomb_xg)
+	rename(events, id = shot.key_pass_id, pass.statsbomb_xa = shot.statsbomb_xg) %>%
+	filter(id != "NA")
 
 # Full Join
-events.xG_xA <- full_join(events, events.xG_to_xA, by = “id”)
+events.xG_xA <- left_join(events, events.xG_to_xA, by = “id”)
