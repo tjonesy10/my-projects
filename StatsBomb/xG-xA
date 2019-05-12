@@ -1,0 +1,51 @@
+require(dplyr)
+require(formattable)
+require(StatsBombR)
+
+events <- StatsBombFreeEvents()
+events <- cleanlocations(events)
+events <- events %>% filter(competition_id == 37)
+
+# Get minutes played
+# learned from David Fombella @ https://github.com/davidfombella/StatsBomb/blob/master/Top_10_players_Passing_Inside_of_the_box.R
+minutes.played <- StatsBombR::get.minutesplayed(events)
+
+# Total minutes played per player
+# learned from David Fombella @ https://github.com/davidfombella/StatsBomb/blob/master/Top_10_players_Passing_Inside_of_the_box.R
+minutes.played.per.player <- minutes.played %>%
+  group_by(player.name) %>%
+  mutate(total.minutes.played = sum(minutes.played))
+  
+# get xG
+Overview <- events %>%
+  group_by(player.id) %>%
+  summarize(xG = sum(shot.statsbomb_xg, na.rm = TRUE)) %>%
+  arrange(desc(xG))
+  
+# get xA
+# Filter data with xG & IDs, rename to xA
+events.xG_to_xA <- filter(events, shot.statsbomb_xg != "NA") %>%
+  select(shot.key_pass_id, shot.statsbomb_xg) %>%
+  rename(id = shot.key_pass_id, pass.statsbomb_xa = shot.statsbomb_xg) %>%
+  filter(id != "NA")
+
+# Join xA data to events in a new df
+events.xG_xA <- left_join(events, events.xG_to_xA, by = "id")
+  
+# get xG & xA from events.xG_to_xA
+Overview.xG_xA <- events.xG_xA %>%
+  group_by(player.id) %>%
+  summarize(xG = round(sum(shot.statsbomb_xg, na.rm = TRUE),2), xA = round(sum(pass.statsbomb_xa, na.rm = TRUE),2)) %>%
+  arrange(desc(xG))
+
+# get xGp90 & xAp90 with at least 500 minutes played
+Overview2.xG_xA <- full_join(Overview.xG_xA, minutes.played.per.player, by = "player.id") %>%
+  group_by(player.name) %>%
+  distinct(player.name, xG, xA, total.minutes.played) %>%
+  mutate(xGp90 = xG / total.minutes.played * 90, xAp90 = xA / total.minutes.played * 90) %>%
+  arrange(desc(xGp90)) %>%
+  filter(total.minutes.played >= 500)
+  
+# Graph xGp90 by xAp90
+require(ggplot2)
+plot.xG_xA <- ggplot(Overview2.xG_xA, aes(x = xGp90, y = xAp90)) + geom_point()
